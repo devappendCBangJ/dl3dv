@@ -54,12 +54,12 @@ def verify_access(repo: str):
         return False
 
 
-def hf_download_path(repo: str, rel_path: str, odir: str, max_try: int = 5):
+def hf_download_path(repo: str, rel_path: str, output_dir: str, max_try: int = 5):
     """ hf api is not reliable, retry when failed with max tries
 
     :param repo: The huggingface dataset repo 
     :param rel_path: The relative path in the repo
-    :param odir: output path 
+    :param output_dir: output path 
     :param max_try: As the downloading is not a reliable process, we will retry for max_try times
     """	
     counter = 0
@@ -71,8 +71,8 @@ def hf_download_path(repo: str, rel_path: str, odir: str, max_try: int = 5):
             api.hf_hub_download(repo_id=repo, 
                                 filename=rel_path, 
                                 repo_type='dataset', 
-                                local_dir=odir, 
-                                cache_dir=join(odir, '.cache'))
+                                local_dir=output_dir, 
+                                cache_dir=join(output_dir, '.cache'))
             return True
 
         except KeyboardInterrupt:
@@ -262,7 +262,7 @@ def download_dataset(args):
     :param args: argparse args. Used to decide the subset.
     :return: download success or not
     """	
-    output_dir = args.odir
+    output_dir = args.output_dir
     subset_opt = args.subset
     reso_opt   = args.resolution
     hash_name  = args.hash
@@ -280,7 +280,7 @@ def download_dataset(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--odir', type=str, help='output directory', required=True)
+    parser.add_argument('--output_dir', type=str, help='output directory', required=True)
     parser.add_argument('--subset', choices=['1K', '2K', '3K', '4K', '5K', '6K', '7K', '8K', '9K', '10K', '11K'], help='The subset of the benchmark to download (required if --hash and --hash_list are not set)', required=False, default=None)
     parser.add_argument('--resolution', choices=['4K', '2K', '960P', '480P'], help='The resolution to donwnload', required=True)
     parser.add_argument('--file_type', choices=['images+poses', 'video', 'colmap_cache'], help='The file type to download', required=True, default='images+poses')
@@ -347,6 +347,6 @@ if __name__ == '__main__':
         exit(1)
 
     if download_dataset(params):
-        print('Download Done. Refer to', params.odir)
+        print('Download Done. Refer to', params.output_dir)
     else:
-        print(f'Download to {params.odir} failed. See error messsage.')
+        print(f'Download to {params.output_dir} failed. See error messsage.')
