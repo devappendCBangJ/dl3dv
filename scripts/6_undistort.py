@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
 # load library
 import argparse
+import os
+import shutil
 import subprocess
 from pathlib import Path
 from tqdm import tqdm
+
+def has_files(path: Path) -> bool:
+    """Check if directory has any files recursively"""
+    if not path.exists():
+        return False
+    try:
+        for root, dirs, files in os.walk(path):
+            if files:
+                return True
+        return False
+    except:
+        return False
 
 def run_colmap_undistort(scene_name: str, input_dir: Path, output_dir: Path):
     """
@@ -23,6 +37,14 @@ def run_colmap_undistort(scene_name: str, input_dir: Path, output_dir: Path):
     if not image_path.exists() or not sparse_path.exists():
         print(f"⚠️  Skipping {scene_name}: images or sparse/0 directory not found")
         return False
+
+    # Check if already undistorted (has both images and sparse/0 with files)
+    output_images = output_path/"images"
+    output_sparse = output_path/"sparse"/"0"
+    if has_files(output_images) and has_files(output_sparse):
+        print(f"⏭️  Skipping {scene_name}: already undistorted")
+        return True
+
     output_path.mkdir(parents=True, exist_ok=True)
 
     # set COLMAP
@@ -47,6 +69,26 @@ def run_colmap_undistort(scene_name: str, input_dir: Path, output_dir: Path):
             capture_output=True,
             text=True
         )
+
+        # Move sparse/ to sparse/0/ to match COLMAP format
+        sparse_output = output_path/"sparse"
+        sparse_0_output = output_path/"sparse"/"0"
+
+        if sparse_output.exists() and not sparse_0_output.exists():
+            # Create temporary directory to hold the files
+            temp_sparse = output_path/"sparse_temp"
+
+            # Move contents of sparse/ to temp directory
+            if temp_sparse.exists():
+                shutil.rmtree(temp_sparse)
+            shutil.move(str(sparse_output), str(temp_sparse))
+
+            # Recreate sparse/ and move temp contents to sparse/0/
+            sparse_output.mkdir(exist_ok=True)
+            shutil.move(str(temp_sparse), str(sparse_0_output))
+
+            print(f"  → Reorganized output to sparse/0/")
+
         print(f"✓ Successfully processed {scene_name}")
         return True
     except subprocess.CalledProcessError as e:

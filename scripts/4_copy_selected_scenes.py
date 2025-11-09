@@ -75,19 +75,65 @@ def copy_scene(scene_name: str, input_dir: str, output_dir: str, overwrite: bool
     :param input_dir: Source directory
     :param output_dir: Destination directory
     :param overwrite: If True, overwrite existing files
-    :return: True if successful, False otherwise
+    :return: Tuple of (success: bool, status: str) where status is 'copied', 'partial', or 'skipped'
     """
     input_path = Path(input_dir) / scene_name
     output_path = Path(output_dir) / scene_name
 
     # Check if source exists
     if not input_path.exists():
-        return False
+        return False, 'error'
 
     # Check if destination exists
     if output_path.exists():
         if not overwrite:
-            return False  # Skip if exists and not overwriting
+            # Smart partial copy: copy only missing subdirectories
+            images_src = input_path / 'images'
+            sparse_src = input_path / 'sparse'
+            images_dst = output_path / 'images'
+            sparse_dst = output_path / 'sparse'
+
+            copied_something = False
+
+            # Helper function to check if directory is empty or missing
+            def is_empty_or_missing(path):
+                if not path.exists():
+                    return True
+                # Check if directory has any files (recursively)
+                try:
+                    for root, dirs, files in os.walk(path):
+                        if files:  # If any files found, not empty
+                            return False
+                    return True  # No files found, directory is empty
+                except:
+                    return False
+
+            # Copy images if missing or empty
+            if images_src.exists() and is_empty_or_missing(images_dst):
+                try:
+                    if images_dst.exists():
+                        shutil.rmtree(images_dst)  # Remove empty directory
+                    shutil.copytree(images_src, images_dst)
+                    copied_something = True
+                except Exception as e:
+                    print(f"Error copying images for {scene_name}: {e}")
+                    return False, 'error'
+
+            # Copy sparse if missing or empty
+            if sparse_src.exists() and is_empty_or_missing(sparse_dst):
+                try:
+                    if sparse_dst.exists():
+                        shutil.rmtree(sparse_dst)  # Remove empty directory
+                    shutil.copytree(sparse_src, sparse_dst)
+                    copied_something = True
+                except Exception as e:
+                    print(f"Error copying sparse for {scene_name}: {e}")
+                    return False, 'error'
+
+            if copied_something:
+                return True, 'partial'
+            else:
+                return False, 'skipped'  # Both images and sparse already exist
         else:
             # Remove existing directory
             shutil.rmtree(output_path)
@@ -95,10 +141,10 @@ def copy_scene(scene_name: str, input_dir: str, output_dir: str, overwrite: bool
     # Copy the entire scene directory
     try:
         shutil.copytree(input_path, output_path)
-        return True
+        return True, 'copied'
     except Exception as e:
         print(f"Error copying {scene_name}: {e}")
-        return False
+        return False, 'error'
 
 
 def copy_scenes(input_dir: str, output_dir: str, hash_name: str, hash_list: list,
@@ -136,26 +182,27 @@ def copy_scenes(input_dir: str, output_dir: str, hash_name: str, hash_list: list
 
     # Copy scenes
     success_count = 0
+    partial_count = 0
     skip_count = 0
     error_count = 0
 
     for scene_name in tqdm(scenes_to_copy, desc='Copying scenes'):
-        output_scene = output_path / scene_name
-
-        if output_scene.exists() and not overwrite:
-            skip_count += 1
-            continue
-
-        success = copy_scene(scene_name, input_dir, output_dir, overwrite)
+        success, status = copy_scene(scene_name, input_dir, output_dir, overwrite)
 
         if success:
-            success_count += 1
+            if status == 'copied':
+                success_count += 1
+            elif status == 'partial':
+                partial_count += 1
+        elif status == 'skipped':
+            skip_count += 1
         else:
             error_count += 1
 
     # Print summary
     print(f"\nSummary:")
-    print(f"  Successfully copied: {success_count} scene(s)")
+    print(f"  Successfully copied (full): {success_count} scene(s)")
+    print(f"  Partially copied (images or sparse): {partial_count} scene(s)")
     print(f"  Skipped (already exists): {skip_count} scene(s)")
     print(f"  Failed: {error_count} scene(s)")
     print(f"  Destination: {output_path}")

@@ -75,14 +75,24 @@ def reorganize_to_colmap_structure(extracted_path: str, scene_name: str, output_
             shutil.move(str(source_file), str(sparse_folder / colmap_file))
             found_colmap = True
     
-    # Check in subdirectories
+    # Check in subdirectories (including colmap/sparse/0/ structure)
     for subdir in extracted_folder.iterdir():
         if subdir.is_dir() and not subdir.name.startswith('images_'):
+            # First check direct files in subdir
             for colmap_file in colmap_files:
                 source_file = subdir / colmap_file
                 if source_file.exists():
                     shutil.move(str(source_file), str(sparse_folder / colmap_file))
                     found_colmap = True
+
+            # Check for colmap/sparse/0/ structure (common in colmap_cache downloads)
+            sparse_0_dir = subdir / 'sparse' / '0'
+            if sparse_0_dir.exists():
+                for colmap_file in colmap_files:
+                    source_file = sparse_0_dir / colmap_file
+                    if source_file.exists():
+                        shutil.move(str(source_file), str(sparse_folder / colmap_file))
+                        found_colmap = True
     
     return found_colmap, image_count
 
